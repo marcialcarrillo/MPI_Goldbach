@@ -1,8 +1,9 @@
 ﻿
-#include <mpi.h>
+//#include <mpi.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <iterator>
 
 using namespace std;
 
@@ -10,59 +11,85 @@ vector<int> primes_generated;
 vector<int> global_solutions_vector;
 vector<int> local_solutions_vector;
 vector<bool> marked;
-int process_id;
+int process_id = 2;
 int ammount_of_digits_for_each_process;
+int ids_upper_limmit;
+vector<int> goldbach_generator_odd_v1_output(3, 0);
+int numbers_to_add_for_input_to_be_divisible;
 
 // foos prototypes
 void generate_primes_up_to_requested_number(int requested_number);
 bool check_if_prime(int prime_to_check);
 vector<int>::iterator prime_iterator_under_requested_number(int requested_number);
 int goldbach_generator_even(int number);
-void goldbach_generator_odd(vector<int> output, int number);
+void goldbach_generator_odd_v1(vector<int>& output, int number);
+void get_args(char* argv[], int& input_number);
+void print(vector<int>);
 // end of foos
 
 int main(int argc, char* argv[]) {
 	int input_number;
-	int process_quantity;
+	int process_quantity = 4;
 
 	/* Arrancar ambiente MPI */
-	MPI_Init(&argc, &argv);             		/* Arranca ambiente MPI */
-	MPI_Comm_rank(MPI_COMM_WORLD, &process_id); 		/* El comunicador le da valor a id (rank del proceso) */
-	MPI_Comm_size(MPI_COMM_WORLD, &process_quantity);  /* El comunicador le da valor a p (número de procesos) */
+	//MPI_Init(&argc, &argv);             		/* Arranca ambiente MPI */
+	//MPI_Comm_rank(MPI_COMM_WORLD, &process_id); 		/* El comunicador le da valor a id (rank del proceso) */
+	//MPI_Comm_size(MPI_COMM_WORLD, &process_quantity);  /* El comunicador le da valor a p (número de procesos) */
 
 	//if (process_id == 0)
 	//	cin.ignore();
 	//MPI_Barrier(MPI_COMM_WORLD);
 	get_args(argv, input_number);
 
-	int numbers_to_add_for_input_to_be_divisible = process_quantity - ((input_number - 3) % process_quantity);
+	numbers_to_add_for_input_to_be_divisible = (process_quantity - ((input_number - 3) % process_quantity)) % process_quantity;
 
-	if (numbers_to_add_for_input_to_be_divisible != process_quantity)
-	{
-		input_number += numbers_to_add_for_input_to_be_divisible;
-	}
+	input_number += numbers_to_add_for_input_to_be_divisible;
+
 
 	ammount_of_digits_for_each_process = (input_number - 3) / process_quantity;
+
+	ids_upper_limmit = (ammount_of_digits_for_each_process * (process_id + 1)) + numbers_to_add_for_input_to_be_divisible;
 
 	generate_primes_up_to_requested_number(input_number);
 	global_solutions_vector.resize(input_number * 3);
 	local_solutions_vector.resize(ammount_of_digits_for_each_process * 3);
 
+	int prime1, prime2;
+
 	for (int i = ammount_of_digits_for_each_process; i > 0; i--)
 	{
+		if (ids_upper_limmit % 2 == 0)
+		{
+			prime1 = goldbach_generator_even(ids_upper_limmit);
+			local_solutions_vector[i * 3 - 2] = prime1;
+			local_solutions_vector[i * 3 - 3] = ids_upper_limmit - prime1;
+			ids_upper_limmit--;
+		}
+		else
+		{
+			goldbach_generator_odd_v1(goldbach_generator_odd_v1_output, ids_upper_limmit);
 
+			local_solutions_vector[i * 3 - 1] = goldbach_generator_odd_v1_output[2];
+			local_solutions_vector[i * 3 - 2] = goldbach_generator_odd_v1_output[1];
+			local_solutions_vector[i * 3 - 3] = goldbach_generator_odd_v1_output[0];
+
+			ids_upper_limmit--;
+		}
 	}
+
+	print(local_solutions_vector);
+	cin.ignore();
 
 	//auto it = prime_iterator_under_requested_number(26457);
 	//cout << *it;
 
 
-	MPI_Finalize();
+	//MPI_Finalize();
 	return 0;
 }
 
 
-void generate_primes_up_to_requested_number(int requested_number)
+void generate_primes_up_to_requested_number(int requested_number) //taken from https://www.geeksforgeeks.org/program-for-goldbachs-conjecture-two-primes-with-given-sum/
 {
 	marked.resize(requested_number / 2 + 100);
 	fill(marked.begin(), marked.end(), false);
@@ -108,9 +135,10 @@ int goldbach_generator_even(int number)
 	{
 		return 0;
 	}
+	auto current_prime_iterator = prime_iterator_under_requested_number(number);
 	while (!exit)
 	{
-		auto current_prime_iterator = prime_iterator_under_requested_number(number);
+
 		int residue = number - *current_prime_iterator;
 		if (check_if_prime(residue))
 		{
@@ -120,11 +148,11 @@ int goldbach_generator_even(int number)
 		{
 			return 0;
 		}
-		current_prime_iterator++;
+		current_prime_iterator--;
 	}
 }
 
-void goldbach_generator_odd_v1(vector<int> output, int number)
+void goldbach_generator_odd_v1(vector<int>& output, int number)
 {
 	bool exit = false;
 	vector<int>::iterator current_prime_iterator;
@@ -136,23 +164,23 @@ void goldbach_generator_odd_v1(vector<int> output, int number)
 	}
 	else
 	{
+		current_prime_iterator = prime_iterator_under_requested_number(number);
 		while (!exit)
 		{
-			current_prime_iterator = prime_iterator_under_requested_number(number);
 			residue = number - *current_prime_iterator;
 			second_residue = goldbach_generator_even(residue);
 			if (second_residue != 0)
 			{
-				output[number - (process_id * ammount_of_digits_for_each_process)] = *current_prime_iterator;
-				output[number - ((process_id * ammount_of_digits_for_each_process)) + 1] = second_residue;
-				output[number - ((process_id * ammount_of_digits_for_each_process)) + 2] = residue - second_residue;
+				output[0] = *current_prime_iterator;
+				output[1] = second_residue;
+				output[2] = residue - second_residue;
 				exit = true;
 			}
 			if (*current_prime_iterator == 2)
 			{
 				exit = true;
 			}
-			current_prime_iterator++;
+			current_prime_iterator--;
 		}
 	}
 
@@ -161,4 +189,24 @@ void goldbach_generator_odd_v1(vector<int> output, int number)
 void get_args(char* argv[], int& input_number)
 {
 	input_number = strtol(argv[1], NULL, 10);
+}
+
+void print(vector<int> vector_to_print)
+{
+	for (auto it = vector_to_print.rbegin(); it != vector_to_print.rend(); it++)
+	{
+		int d;
+		d = (distance(vector_to_print.rbegin(), it) / 3);
+		cout << (ammount_of_digits_for_each_process*(process_id + 1)) - d + numbers_to_add_for_input_to_be_divisible << " = " << *(it + 2) << " " << *(it + 1);
+		if (*(it) == 0)
+		{
+			cout << endl;
+		}
+		else
+		{
+			cout << " " << *(it) << endl;
+		}
+		it++;
+		it++;
+	}
 }
