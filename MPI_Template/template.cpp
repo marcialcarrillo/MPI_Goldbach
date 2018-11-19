@@ -16,6 +16,7 @@ int ammount_of_digits_for_each_process;
 int ids_upper_limmit;
 vector<int> goldbach_generator_odd_v1_output(3, 0);
 int numbers_to_add_for_input_to_be_divisible;
+double local_start, local_finish, local_elapsed, elapsed;
 
 // foos prototypes
 void generate_primes_up_to_requested_number(int requested_number);
@@ -42,6 +43,9 @@ int main(int argc, char* argv[]) {
 		cin.ignore();
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
+
+	local_start = MPI_Wtime();
+
 	get_args(argv, input_number);
 
 	numbers_to_add_for_input_to_be_divisible = (process_quantity - ((input_number - 3) % process_quantity)) % process_quantity;
@@ -80,6 +84,10 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	local_finish = MPI_Wtime();
+	local_elapsed = local_finish - local_start;
+
+
 	int *local_solutions_array = local_solutions_vector.data();
 	//int global_solutions_array[3000];
 	int *global_solutions_array = global_solutions_vector.data();
@@ -87,11 +95,13 @@ int main(int argc, char* argv[]) {
 	int n1 = ammount_of_digits_for_each_process * 3;
 	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Gather(local_solutions_array, n1, MPI_INT, global_solutions_array, n1, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Reduce(&local_elapsed, &elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
 	if (process_id == 0)
 	{
 		//vector<int> v(begin(global_solutions_array), end(global_solutions_array));
 		print2(global_solutions_vector);
+		cout << "Tiempo transcurrido = " << elapsed << endl;
 	}
 	cin.ignore();
 
@@ -236,14 +246,14 @@ void print2(vector<int> vector_to_print)
 	{
 		int d;
 		d = (distance(vector_to_print.rbegin(), it) / 3);
-		cout << (vector_to_print.size()/3 - d + numbers_to_add_for_input_to_be_divisible) << " = " << *(it + 2) << " " << *(it + 1);
+		cout << (vector_to_print.size() / 3 - d + numbers_to_add_for_input_to_be_divisible) << " = " << *(it + 2) << " + " << *(it + 1);
 		if (*(it) == 0)
 		{
 			cout << endl;
 		}
 		else
 		{
-			cout << " " << *(it) << endl;
+			cout << " + " << *(it) << endl;
 		}
 		it++;
 		it++;
