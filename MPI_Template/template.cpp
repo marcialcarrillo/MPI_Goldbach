@@ -1,5 +1,5 @@
 ﻿
-//#include <mpi.h>
+#include <mpi.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -11,7 +11,7 @@ vector<int> primes_generated;
 vector<int> global_solutions_vector;
 vector<int> local_solutions_vector;
 vector<bool> marked;
-int process_id = 2;
+int process_id;
 int ammount_of_digits_for_each_process;
 int ids_upper_limmit;
 vector<int> goldbach_generator_odd_v1_output(3, 0);
@@ -25,20 +25,23 @@ int goldbach_generator_even(int number);
 void goldbach_generator_odd_v1(vector<int>& output, int number);
 void get_args(char* argv[], int& input_number);
 void print(vector<int>);
+void print2(vector<int>);
 // end of foos
 
 int main(int argc, char* argv[]) {
 	int input_number;
-	int process_quantity = 4;
+	int process_quantity;
 
 	/* Arrancar ambiente MPI */
-	//MPI_Init(&argc, &argv);             		/* Arranca ambiente MPI */
-	//MPI_Comm_rank(MPI_COMM_WORLD, &process_id); 		/* El comunicador le da valor a id (rank del proceso) */
-	//MPI_Comm_size(MPI_COMM_WORLD, &process_quantity);  /* El comunicador le da valor a p (número de procesos) */
+	MPI_Init(&argc, &argv);             		/* Arranca ambiente MPI */
+	MPI_Comm_rank(MPI_COMM_WORLD, &process_id); 		/* El comunicador le da valor a id (rank del proceso) */
+	MPI_Comm_size(MPI_COMM_WORLD, &process_quantity);  /* El comunicador le da valor a p (número de procesos) */
 
-	//if (process_id == 0)
-	//	cin.ignore();
-	//MPI_Barrier(MPI_COMM_WORLD);
+	if (process_id == 0)
+	{
+		cin.ignore();
+	}
+	MPI_Barrier(MPI_COMM_WORLD);
 	get_args(argv, input_number);
 
 	numbers_to_add_for_input_to_be_divisible = (process_quantity - ((input_number - 3) % process_quantity)) % process_quantity;
@@ -77,14 +80,26 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	print(local_solutions_vector);
+	int *local_solutions_array = local_solutions_vector.data();
+	//int global_solutions_array[3000];
+	int *global_solutions_array = global_solutions_vector.data();
+	int n2 = input_number * 3;
+	int n1 = ammount_of_digits_for_each_process * 3;
+	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Gather(local_solutions_array, n1, MPI_INT, global_solutions_array, n1, MPI_INT, 0, MPI_COMM_WORLD);
+
+	if (process_id == 0)
+	{
+		//vector<int> v(begin(global_solutions_array), end(global_solutions_array));
+		print2(global_solutions_vector);
+	}
 	cin.ignore();
 
 	//auto it = prime_iterator_under_requested_number(26457);
 	//cout << *it;
 
 
-	//MPI_Finalize();
+	MPI_Finalize();
 	return 0;
 }
 
@@ -149,6 +164,7 @@ int goldbach_generator_even(int number)
 			return 0;
 		}
 		current_prime_iterator--;
+
 	}
 }
 
@@ -180,7 +196,10 @@ void goldbach_generator_odd_v1(vector<int>& output, int number)
 			{
 				exit = true;
 			}
-			current_prime_iterator--;
+			if (exit == false)
+			{
+				current_prime_iterator--;
+			}
 		}
 	}
 
@@ -209,4 +228,31 @@ void print(vector<int> vector_to_print)
 		it++;
 		it++;
 	}
+}
+
+void print2(vector<int> vector_to_print)
+{
+	for (auto it = vector_to_print.rbegin(); it != vector_to_print.rend(); it++)
+	{
+		int d;
+		d = (distance(vector_to_print.rbegin(), it) / 3);
+		cout << (vector_to_print.size()/3 - d + numbers_to_add_for_input_to_be_divisible) << " = " << *(it + 2) << " " << *(it + 1);
+		if (*(it) == 0)
+		{
+			cout << endl;
+		}
+		else
+		{
+			cout << " " << *(it) << endl;
+		}
+		it++;
+		it++;
+	}
+
+	//cout << "NOW PRINTING ARRAY" << endl;
+
+	//for (i = 0; i < 1000; i++)
+	//{
+
+	//}
 }
